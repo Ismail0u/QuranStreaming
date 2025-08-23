@@ -59,7 +59,7 @@ export default function HomeScreen() {
       <Card style={styles.surahCard}>
         <View style={styles.surahHeader}>
           <View style={styles.surahNumber}>
-            <Text style={[styles.numberText, { color: '#0ea5e9' }]}>
+            <Text style={[styles.numberText, { color: '#f6fbfdff' }]}>
               {surah.number}
             </Text>
           </View>

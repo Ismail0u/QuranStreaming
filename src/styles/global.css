@@ -2,3 +2,53 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* Custom CSS Variables for consistent theming */
+:root {
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-900: #0c4a6e;
+  
+  --color-dark-bg: #0f172a;
+  --color-dark-card: #1e293b;
+  --color-dark-text: #f8fafc;
+  --color-dark-muted: #64748b;
+  
+  --color-light-bg: #ffffff;
+  --color-light-card: #f8fafc;
+  --color-light-text: #0f172a;
+  --color-light-muted: #64748b;
+}
+
+/* Arabic text styling */
+.arabic-text {
+  font-family: 'Amiri', serif;
+  text-align: right;
+  line-height: 1.8;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Shadow utilities */
+.shadow-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-card-dark {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
