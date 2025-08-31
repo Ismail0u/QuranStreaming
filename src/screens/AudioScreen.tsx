@@ -18,7 +18,8 @@ import AudioPlayer from '../components/audio/AudioPlayer';
 import MiniPlayer from '../components/audio/MiniPlayer';
 import PlayerControls from '../components/audio/PlayerControls';
 import { useAudioStore } from '../store/useAudioStore';
-import { useAudio, useMediaSession } from '../hooks/useAudio';
+import useAudio from '../hooks/useAudio';
+import { useMediaSession } from '../hooks/useAudio';
 import type { AudioTrack, Reciter } from '../types';
 
 const AudioScreen: React.FC = () => {
