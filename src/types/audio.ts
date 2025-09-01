@@ -2,6 +2,8 @@
 export interface AudioTrack {
   id: string;
   surahNumber: number;
+  surahName : string;
+  title : string;
   ayahNumber?: number;
   reciter: Reciter;
   url: string;

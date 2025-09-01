@@ -18,7 +18,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -37,7 +39,9 @@
     },
     "plugins": [
       "expo-font",
-      "expo-av"
+      "expo-av",
+      "expo-audio",
+      "expo-video"
     ]
   }
 }

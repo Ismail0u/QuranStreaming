@@ -1,5 +1,5 @@
-// 📖 src/screens/QuranScreen.tsx
-import React, { useEffect, useState } from 'react';
+// 📖 src/screens/QuranScreen.tsx - Enhanced Version
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   FlatList,
   Dimensions,
   StatusBar,
+  Animated,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -34,7 +36,7 @@ interface QuranScreenProps {
   navigation: NavigationProp<RootStackParamList>;
 }
 
-type ViewMode = 'surahs' | 'juz' | 'search';
+type ViewMode = 'surahs' | 'juz' | 'favorites';
 
 const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
   const isDarkMode = useSettingsStore((state) => state.isDarkMode);
@@ -43,11 +45,29 @@ const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('surahs');
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredSurahs, setFilteredSurahs] = useState<Surah[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     if (surahs.length === 0) {
       fetchSurahs();
     }
+    
+    // Animate entrance
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   useEffect(() => {
@@ -55,7 +75,8 @@ const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
       const filtered = surahs.filter(surah => 
         surah.englishName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         surah.name.includes(searchQuery) ||
-        surah.englishNameTranslation.toLowerCase().includes(searchQuery.toLowerCase())
+        surah.englishNameTranslation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        surah.number.toString().includes(searchQuery)
       );
       setFilteredSurahs(filtered);
     } else {
@@ -63,78 +84,164 @@ const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
     }
   }, [searchQuery, surahs]);
 
-  const TabButton = ({ title, mode, icon }: { title: string; mode: ViewMode; icon: string }) => (
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchSurahs();
+    setRefreshing(false);
+  };
+
+  const TabButton = ({ title, mode, icon, count }: { 
+    title: string; 
+    mode: ViewMode; 
+    icon: string;
+    count?: number;
+  }) => (
     <TouchableOpacity
       style={[
         styles.tabButton,
         viewMode === mode && styles.tabButtonActive,
-        { backgroundColor: viewMode === mode ? '#0ea5e9' : 'transparent' }
       ]}
       onPress={() => setViewMode(mode)}
+      activeOpacity={0.7}
     >
-      <Ionicons 
-        name={icon as any} 
-        size={18} 
-        color={viewMode === mode ? '#fff' : (isDarkMode ? '#94a3b8' : '#6b7280')} 
-      />
-      <Text style={[
-        styles.tabButtonText,
-        { color: viewMode === mode ? '#fff' : (isDarkMode ? '#94a3b8' : '#6b7280') }
-      ]}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const SurahItem = ({ surah, index }: { surah: Surah; index: number }) => (
-    <TouchableOpacity
-      style={[
-        styles.surahItem,
-        { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }
-      ]}
-      onPress={() => navigation.navigate('SurahDetail', { surahNumber: surah.number })}
-    >
-      <View style={styles.surahLeft}>
-        <View style={styles.surahNumberContainer}>
-          <Text style={styles.surahNumber}>{surah.number}</Text>
-        </View>
-        <View style={styles.surahInfo}>
-          <Text style={[styles.surahName, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-            {surah.englishName}
-          </Text>
-          <Text style={[styles.surahTranslation, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
-            {surah.englishNameTranslation}
-          </Text>
-          <Text style={[styles.surahDetails, { color: isDarkMode ? '#64748b' : '#9ca3af' }]}>
-            {surah.numberOfAyahs} آيات • {surah.revelationType === 'Meccan' ? 'مكية' : 'مدنية'}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.surahRight}>
-        <Text style={[styles.surahArabic, { color: isDarkMode ? '#cbd5e1' : '#374151' }]}>
-          {surah.name}
+      <LinearGradient
+        colors={
+          viewMode === mode 
+            ? ['#0ea5e9', '#3b82f6'] 
+            : ['transparent', 'transparent']
+        }
+        style={styles.tabButtonGradient}
+      >
+        <Ionicons 
+          name={icon as any} 
+          size={18} 
+          color={viewMode === mode ? '#fff' : (isDarkMode ? '#94a3b8' : '#6b7280')} 
+        />
+        <Text style={[
+          styles.tabButtonText,
+          { color: viewMode === mode ? '#fff' : (isDarkMode ? '#94a3b8' : '#6b7280') }
+        ]}>
+          {title}
         </Text>
-        <TouchableOpacity style={styles.playButton}>
-          <Ionicons name="play" size={16} color="#0ea5e9" />
-        </TouchableOpacity>
-      </View>
+        {count !== undefined && (
+          <View style={styles.tabBadge}>
+            <Text style={styles.tabBadgeText}>{count}</Text>
+          </View>
+        )}
+      </LinearGradient>
     </TouchableOpacity>
   );
 
-  const JuzItem = ({ juz }: { juz: number }) => (
+  const EnhancedSurahItem = ({ surah, index }: { surah: Surah; index: number }) => {
+    const itemAnim = useRef(new Animated.Value(0)).current;
+    
+    useEffect(() => {
+      Animated.timing(itemAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 50,
+        useNativeDriver: true,
+      }).start();
+    }, []);
+
+    return (
+      <Animated.View
+        style={[
+          styles.surahItemContainer,
+          {
+            opacity: itemAnim,
+            transform: [{ translateX: itemAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [50, 0],
+            })}]
+          }
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.surahItem,
+            { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }
+          ]}
+          onPress={() => navigation.navigate('SurahDetail', { surahNumber: surah.number })}
+          activeOpacity={0.8}
+        >
+          <View style={styles.surahLeft}>
+            <View style={styles.surahNumberContainer}>
+              <LinearGradient
+                colors={['#0ea5e9', '#3b82f6']}
+                style={styles.surahNumberGradient}
+              >
+                <Text style={styles.surahNumber}>{surah.number}</Text>
+              </LinearGradient>
+            </View>
+            
+            <View style={styles.surahInfo}>
+              <Text style={[styles.surahName, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
+                {surah.englishName}
+              </Text>
+              <Text style={[styles.surahTranslation, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
+                {surah.englishNameTranslation}
+              </Text>
+              <View style={styles.surahMetaRow}>
+                <View style={styles.ayahBadge}>
+                  <Text style={styles.ayahBadgeText}>{surah.numberOfAyahs} آيات</Text>
+                </View>
+                <View style={styles.typeBadge}>
+                  <Text style={[styles.typeBadgeText, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
+                    {surah.revelationType === 'Meccan' ? 'مكية' : 'مدنية'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.surahRight}>
+            <Text style={[styles.surahArabic, { color: isDarkMode ? '#cbd5e1' : '#374151' }]}>
+              {surah.name}
+            </Text>
+            <View style={styles.surahActions}>
+              <TouchableOpacity style={styles.bookmarkButton}>
+                <Ionicons name="bookmark-outline" size={16} color={isDarkMode ? '#94a3b8' : '#6b7280'} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.playButton}>
+                <LinearGradient
+                  colors={['#10b981', '#059669']}
+                  style={styles.playButtonGradient}
+                >
+                  <Ionicons name="play" size={14} color="#fff" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Hover effect */}
+          <View style={[styles.hoverEffect, { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.05)' : 'rgba(14, 165, 233, 0.03)' }]} />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const JuzCard = ({ juz }: { juz: number }) => (
     <TouchableOpacity
       style={[
-        styles.juzItem,
+        styles.juzCard,
         { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }
       ]}
       onPress={() => {}}
+      activeOpacity={0.8}
     >
       <LinearGradient
-        colors={['#0ea5e9', '#3b82f6']}
+        colors={['#8b5cf6', '#7c3aed']}
         style={styles.juzGradient}
       >
         <Text style={styles.juzNumber}>{juz}</Text>
+        <View style={styles.juzPattern}>
+          <View style={styles.juzDot} />
+          <View style={styles.juzDot} />
+          <View style={styles.juzDot} />
+        </View>
       </LinearGradient>
+      
       <View style={styles.juzInfo}>
         <Text style={[styles.juzTitle, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
           الجزء {juz}
@@ -142,7 +249,16 @@ const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
         <Text style={[styles.juzSubtitle, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
           Part {juz}
         </Text>
+        <View style={styles.juzProgress}>
+          <View style={styles.juzProgressBar}>
+            <View style={[styles.juzProgressFill, { width: '0%' }]} />
+          </View>
+          <Text style={[styles.juzProgressText, { color: isDarkMode ? '#64748b' : '#9ca3af' }]}>
+            0% مكتمل
+          </Text>
+        </View>
       </View>
+      
       <Ionicons 
         name="chevron-forward" 
         size={20} 
@@ -151,100 +267,146 @@ const QuranScreen: React.FC<QuranScreenProps> = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Text style={[styles.headerTitle, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-        القرآن الكريم
-      </Text>
-      <View style={styles.tabContainer}>
-        <TabButton title="السور" mode="surahs" icon="book-outline" />
-        <TabButton title="الأجزاء" mode="juz" icon="library-outline" />
-      </View>
-    </View>
-  );
-
-  const renderSearchSection = () => (
-    <View style={styles.searchSection}>
-      <SearchBar
-        placeholder="البحث في القرآن الكريم..."
-        onSearch={setSearchQuery}
-        onClear={() => setSearchQuery('')}
-        style={styles.searchBar}
-      />
-    </View>
-  );
-
-  const renderSurahsView = () => (
-    <View style={styles.content}>
+  const renderStatsHeader = () => (
+    <Animated.View 
+      style={[
+        styles.statsHeader,
+        { 
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
       <View style={styles.statsRow}>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-            {surahs.length}
-          </Text>
-          <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
-            سورة
-          </Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-            6236
-          </Text>
-          <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
-            آية
-          </Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-            30
-          </Text>
-          <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
-            جزء
-          </Text>
-        </Card>
+        {[
+          { label: 'سورة', value: surahs.length, icon: 'book-outline', gradient: ['#0ea5e9', '#3b82f6'] },
+          { label: 'آية', value: 6236, icon: 'text-outline', gradient: ['#10b981', '#059669'] },
+          { label: 'جزء', value: 30, icon: 'library-outline', gradient: ['#f59e0b', '#d97706'] },
+        ].map((stat, index) => (
+          <Card key={index} style={styles.statCard}>
+            <LinearGradient colors={stat.gradient} style={styles.statIcon}>
+              <Ionicons name={stat.icon as any} size={20} color="#fff" />
+            </LinearGradient>
+            <Text style={[styles.statValue, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
+              {stat.value}
+            </Text>
+            <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
+              {stat.label}
+            </Text>
+          </Card>
+        ))}
       </View>
-      
-      <FlatList
-        data={filteredSurahs}
-        keyExtractor={(item) => item.number.toString()}
-        renderItem={({ item, index }) => <SurahItem surah={item} index={index} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-      />
-    </View>
+    </Animated.View>
   );
 
-  const renderJuzView = () => (
-    <View style={styles.content}>
-      <Text style={[styles.sectionTitle, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
-        أجزاء القرآن الكريم
-      </Text>
-      <FlatList
-        data={Array.from({ length: 30 }, (_, i) => i + 1)}
-        keyExtractor={(item) => item.toString()}
-        renderItem={({ item }) => <JuzItem juz={item} />}
-        numColumns={2}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.juzContainer}
-      />
-    </View>
-  );
-
-  if (isLoading) {
-    return <LoadingSpinner text="جاري تحميل القرآن الكريم..." />;
+  if (isLoading && surahs.length === 0) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
+        <LoadingSpinner text="جاري تحميل القرآن الكريم..." />
+      </View>
+    );
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={isDarkMode ? '#0f172a' : '#f8fafc'}
+        backgroundColor="transparent"
+        translucent
       />
       
-      {renderHeader()}
-      {renderSearchSection()}
-      
-      {viewMode === 'surahs' && renderSurahsView()}
-      {viewMode === 'juz' && renderJuzView()}
+      {/* Background */}
+      <LinearGradient
+        colors={
+          isDarkMode 
+            ? ['#0f172a', '#1e293b', '#0f172a']
+            : ['#f8fafc', '#e2e8f0', '#f8fafc']
+        }
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Header */}
+      <Animated.View 
+        style={[
+          styles.header,
+          { 
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
+          القرآن الكريم
+        </Text>
+        
+        {/* Enhanced Tab Container */}
+        <View style={[styles.tabContainer, { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }]}>
+          <TabButton title="السور" mode="surahs" icon="book-outline" count={surahs.length} />
+          <TabButton title="الأجزاء" mode="juz" icon="library-outline" count={30} />
+          <TabButton title="المفضلة" mode="favorites" icon="heart-outline" />
+        </View>
+      </Animated.View>
+
+      {/* Search Section */}
+      <View style={styles.searchSection}>
+        <SearchBar
+          placeholder="البحث في القرآن الكريم..."
+          onSearch={setSearchQuery}
+          onClear={() => setSearchQuery('')}
+          style={styles.searchBar}
+        />
+      </View>
+
+      {/* Stats Header */}
+      {viewMode === 'surahs' && renderStatsHeader()}
+
+      {/* Content */}
+      <View style={styles.content}>
+        {viewMode === 'surahs' && (
+          <FlatList
+            data={filteredSurahs}
+            keyExtractor={(item) => item.number.toString()}
+            renderItem={({ item, index }) => <EnhancedSurahItem surah={item} index={index} />}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={isDarkMode ? '#f8fafc' : '#111827'}
+              />
+            }
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+          />
+        )}
+        
+        {viewMode === 'juz' && (
+          <FlatList
+            data={Array.from({ length: 30 }, (_, i) => i + 1)}
+            keyExtractor={(item) => item.toString()}
+            renderItem={({ item }) => <JuzCard juz={item} />}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.juzContainer}
+            numColumns={1}
+          />
+        )}
+        
+        {viewMode === 'favorites' && (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="heart-outline" size={64} color={isDarkMode ? '#64748b' : '#9ca3af'} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>
+              لا توجد مفضلة بعد
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>
+              أضف السور المفضلة لديك لسهولة الوصول إليها
+            </Text>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -253,96 +415,137 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 4,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  tabButtonActive: {
-    elevation: 2,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 6,
+  },
+  tabButton: {
+    flex: 1,
+  },
+  tabButtonActive: {
+    elevation: 2,
+  },
+  tabButtonGradient: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    position: 'relative',
   },
   tabButtonText: {
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
   },
+  tabBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0ea5e9',
+    textAlign: 'center',
+  },
   searchSection: {
     paddingHorizontal: 20,
     marginBottom: 20,
   },
   searchBar: {
-    marginBottom: 0,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
-  content: {
-    flex: 1,
+  statsHeader: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 20,
   },
   statCard: {
     flex: 1,
     marginHorizontal: 4,
     alignItems: 'center',
     paddingVertical: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  statNumber: {
-    fontSize: 20,
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '500',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    textAlign: 'right',
+  content: {
+    flex: 1,
   },
   listContainer: {
     paddingHorizontal: 20,
     paddingBottom: 100,
+  },
+  surahItemContainer: {
+    marginBottom: 8,
   },
   surahItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    elevation: 1,
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    position: 'relative',
+    overflow: 'hidden',
   },
   surahLeft: {
     flexDirection: 'row',
@@ -350,93 +553,198 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   surahNumberContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#0ea5e9',
+    marginRight: 16,
+  },
+  surahNumberGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    elevation: 3,
+    shadowColor: '#0ea5e9',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   surahNumber: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   surahInfo: {
     flex: 1,
   },
   surahName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   surahTranslation: {
     fontSize: 13,
-    marginBottom: 2,
+    marginBottom: 6,
+    fontStyle: 'italic',
   },
-  surahDetails: {
-    fontSize: 11,
-    textAlign: 'right',
+  surahMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  ayahBadge: {
+    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  ayahBadgeText: {
+    color: '#0ea5e9',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
   },
   surahRight: {
     alignItems: 'flex-end',
   },
   surahArabic: {
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: 20,
+    fontWeight: '600',
     marginBottom: 8,
     textAlign: 'right',
+    fontFamily: 'System',
   },
-  playButton: {
+  surahActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bookmarkButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e0f2fe',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  playButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  playButtonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hoverEffect: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
   },
   juzContainer: {
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
-  juzItem: {
-    flex: 1,
+  juzCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    margin: 4,
-    borderRadius: 12,
-    elevation: 1,
+    marginBottom: 12,
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   juzGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    position: 'relative',
   },
   juzNumber: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+  },
+  juzPattern: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'column',
+  },
+  juzDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    marginBottom: 2,
   },
   juzInfo: {
     flex: 1,
   },
   juzTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
     textAlign: 'right',
   },
   juzSubtitle: {
     fontSize: 13,
+    marginBottom: 8,
+  },
+  juzProgress: {
+    marginTop: 4,
+  },
+  juzProgressBar: {
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  juzProgressFill: {
+    height: '100%',
+    backgroundColor: '#8b5cf6',
+    borderRadius: 2,
+  },
+  juzProgressText: {
+    fontSize: 10,
+    textAlign: 'right',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });
 

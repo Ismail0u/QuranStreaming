@@ -21,10 +21,10 @@ export const useAudio = () => {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           staysActiveInBackground: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+          interruptionModeIOS: 2,
           playsInSilentModeIOS: true,
           shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+          interruptionModeAndroid: 1,
           playThroughEarpieceAndroid: false,
         });
       } catch (error) {
@@ -44,8 +44,8 @@ export const useAudio = () => {
 
   // Gestion des changements de piste
   useEffect(() => {
-    if (currentTrack && currentTrack.audioUrl) {
-      loadSound(currentTrack.audioUrl);
+    if (currentTrack && currentTrack.url) {
+      loadSound(currentTrack.url);
     }
   }, [currentTrack]);
 
