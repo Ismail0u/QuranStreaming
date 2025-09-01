@@ -19,11 +19,11 @@ export default function TabNavigator() {
   const isDarkMode = useSettingsStore((state) => state.isDarkMode);
   
   const tabBarStyle = {
-    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-    borderTopColor: isDarkMode ? '#374151' : '#e5e7eb',
-    paddingBottom: 8,
-    paddingTop: 8,
-    height: 60,
+    backgroundColor: isDarkMode ? '#1e293b' : '#fffffsf',
+    borderTopColor: isDarkMode ? '#374151' : '#e5e777',
+    paddingBottom: 5,
+    paddingTop: 6,
+    height: 70,
   };
 
   const activeColor = '#0ea5e9';

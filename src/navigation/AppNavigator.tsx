@@ -30,18 +30,16 @@ export default function AppNavigator() {
         name="SurahDetail" 
         component={SurahDetailScreen}
         options={{
-          headerShown: true,
+          headerShown: false,
           headerTitle: '',
-          headerBackTitleVisible: false,
         }}
       />
       <Stack.Screen 
         name="Settings" 
         component={SettingsScreen}
         options={{
-          headerShown: true,
+          headerShown: false,
           headerTitle: 'Settings',
-          headerBackTitleVisible: false,
         }}
       />
       <Stack.Screen 
